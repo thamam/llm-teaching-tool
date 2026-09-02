@@ -10,11 +10,14 @@ function escapeHtml(s) {
 }
 
 function render(state) {
-  $("stageBadge").textContent = "Stage: " + state.stage;
-  const tokens = state.generated
-    ? state.generated.split("").map(function (ch) {
-        return '<span class="token">' + escapeHtml(ch === " " ? " " : ch) + "</span>";
-      }).join("")
+  $("stageBadge").textContent =
+    (state.source === "live" ? "LIVE \u00b7 " : "MOCK \u00b7 ") + state.stage;
+  const tokens = state.tokens.length
+    ? state.tokens
+        .map(function (tok) {
+          return '<span class="token">' + escapeHtml(tok) + "</span>";
+        })
+        .join("")
     : '<span class="placeholder">Press Step or Run</span>';
   $("output").innerHTML = tokens + (state.running ? '<span class="caret"></span>' : "");
 
@@ -32,28 +35,41 @@ function render(state) {
     })
     .join("");
 
-  $("bars").innerHTML = (state.tops || [])
-    .map(function (t, i) {
-      const w = Math.max(2, Math.round(t.p * 100));
-      return (
-        '<div class="bar-row"><span class="bar-label">' +
-        escapeHtml(t.char) +
-        '</span><div class="bar-track"><div class="bar-fill' +
-        (i === 0 ? " top" : "") +
-        '" style="width:' +
-        w +
-        '%"></div></div><span class="bar-pct">' +
-        w +
-        "%</span></div>"
-      );
-    })
-    .join("");
+  if (state.source === "live" && !state.tops.length) {
+    $("bars").innerHTML =
+      '<div class="note">Groq does not return logprobs. Live mode shows streamed tokens. Use Mock to see a candidate distribution.</div>';
+  } else {
+    $("bars").innerHTML = (state.tops || [])
+      .map(function (t, i) {
+        const w = Math.max(2, Math.round(t.p * 100));
+        const label = t.tok.length > 18 ? t.tok.slice(0, 16) + "\u2026" : t.tok;
+        return (
+          '<div class="bar-row"><span class="bar-label" title="' +
+          escapeHtml(t.tok) +
+          '">' +
+          escapeHtml(label) +
+          '</span><div class="bar-track"><div class="bar-fill' +
+          (i === 0 ? " top" : "") +
+          '" style="width:' +
+          w +
+          '%"></div></div><span class="bar-pct">' +
+          w +
+          "%</span></div>"
+        );
+      })
+      .join("");
+  }
 
-  $("status").textContent = state.done
-    ? "Done"
-    : state.running
-      ? "Generating…"
-      : "Idle \u00b7 " + (state.memoryOn ? "memory on" : "no memory") + " \u00b7 no tools active";
+  let status = state.error
+    ? "Error: " + state.error
+    : state.done
+      ? "Done"
+      : state.running
+        ? state.source === "live"
+          ? "Streaming from Groq\u2026"
+          : "Generating\u2026"
+        : "Idle \u00b7 " + state.source + " \u00b7 " + (state.memoryOn ? "memory on" : "no memory");
+  $("status").textContent = status;
 }
 
 harness.onUpdate = render;
@@ -68,10 +84,24 @@ document.querySelectorAll("[data-stage]").forEach(function (btn) {
   });
 });
 
+document.querySelectorAll("[data-source]").forEach(function (btn) {
+  btn.addEventListener("click", function () {
+    document.querySelectorAll("[data-source]").forEach(function (b) {
+      b.classList.remove("active");
+    });
+    btn.classList.add("active");
+    harness.setSource(btn.dataset.source);
+  });
+});
+
 $("temp").addEventListener("input", function (e) {
   const t = Number(e.target.value) / 100;
   $("tempVal").textContent = t.toFixed(2);
   harness.setTemp(t);
+});
+
+$("model").addEventListener("change", function (e) {
+  harness.setModel(e.target.value);
 });
 
 $("stepBtn").addEventListener("click", function () {
