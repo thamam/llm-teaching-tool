@@ -1,35 +1,43 @@
 # LLM Teaching Tool
 
-Interactive demo that teaches how large language models work by building up from the simplest possible model to a full agent harness.
+Interactive demo that teaches how LLMs work: next-token prediction, the generation loop, tools, and memory.
 
 **Repo:** https://github.com/thamam/llm-teaching-tool
 
-## Stages
+## Two sources
 
-1. **Bare model** — next-token prediction. Watch the model score the vocabulary and emit one token at a time.
-2. **Loop** — each emitted token feeds back into the context so the model generates a full response on its own.
-3. **Tools** — the harness can intercept a function-call pattern, run a tool, and splice the result back into the context.
-4. **Memory** — toggle a running note that persists across turns. Turn it off and watch the model “forget.”
+- **Mock** — scripted *subword* tokens plus a fake candidate distribution. Use this to teach “the model scores a vocabulary.” Works offline.
+- **Live Groq** — a real fast model with streaming. Use this so students see actual tokens, tool calls, and temperature. Costs pennies.
 
-## Why scripted outputs?
-
-A tiny in-browser model cannot produce coherent sentences. The visible text is a scripted transcript so the demo stays readable. The probability bars are still driven by a live scoring function (temperature-sensitive). That split is the honest part students learn from: *what the model scores* vs *what the harness does with it*.
-
-## Stack
-
-- Vanilla HTML / CSS / JS
-- No build step, no framework
-- TensorFlow.js can be dropped in later for a real character-level model
+Groq does **not** return logprobs. In Live mode the inspector shows the streamed token, not a full softmax. That is honest. Mock is where the probability bars earn their keep.
 
 ## Run
 
-Open `index.html` in a browser. That is it.
+```bash
+cp .env.example .env
+# paste your Groq key into .env
+python3 server.py
+```
+
+Open http://127.0.0.1:8765
+
+Without a key, Mock still works.
+
+## Controls
+
+- **Step** — one mock token, or a short Live completion.
+- **Run** — play the script, or stream a full Groq reply.
+- **Bare / Loop / Tools / Memory** — same mental model in both sources.
+- Default Live model: `llama-3.1-8b-instant`.
+
+## Why a local proxy
+
+The browser talks to `/api/chat`. `server.py` forwards to Groq. The key stays on your machine.
 
 ## Roadmap
 
-- [x] Phase 0: scaffold + plan
-- [x] Phase 1: static UI matching the Figma mockup
-- [x] Phase 2: scripted model + live probability bars
-- [ ] Phase 3: loop harness polish (stop sequences, max tokens)
-- [ ] Phase 4: real tool-call parsing
-- [ ] Phase 5: memory summarizer
+- [x] Mock subword tokens + candidate bars
+- [x] Live Groq streaming via local proxy
+- [ ] Together / DeepInfra path if we want real top-k logprobs
+- [ ] Proper tool-call loop (model sees the tool result and continues)
+- [ ] Memory summarizer instead of raw last reply
