@@ -1,43 +1,38 @@
 # LLM Teaching Tool
 
-Interactive demo that teaches how LLMs work: next-token prediction, the generation loop, tools, and memory.
+Interactive demo: next-token prediction, the generation loop, tools, and memory.
 
 **Repo:** https://github.com/thamam/llm-teaching-tool
 
-## Two sources
+## Sources
 
-- **Mock** — scripted *subword* tokens plus a fake candidate distribution. Use this to teach “the model scores a vocabulary.” Works offline.
-- **Live Groq** — a real fast model with streaming. Use this so students see actual tokens, tool calls, and temperature. Costs pennies.
+- **Mock** — scripted subword tokens + candidate bars. Offline.
+- **Live** — Groq, OpenRouter, or Together through a local proxy.
 
-Groq does **not** return logprobs. In Live mode the inspector shows the streamed token, not a full softmax. That is honest. Mock is where the probability bars earn their keep.
+Groq is fastest but has no logprobs. OpenRouter and Together can return top-k logprobs, so the inspector bars are real on those paths.
+
+## Tool loop
+
+On the Tools stage, Live sends function schemas (`now`, `add`). If the model emits `tool_calls`, the harness runs them locally, appends a `tool` message, and calls the model again until it answers in text. Max four rounds.
 
 ## Run
 
 ```bash
 cp .env.example .env
-# paste your Groq key into .env
+# fill any keys you have — you only need one provider
 python3 server.py
 ```
 
 Open http://127.0.0.1:8765
 
-Without a key, Mock still works.
+The footer shows which keys loaded.
 
-## Controls
+## Models
 
-- **Step** — one mock token, or a short Live completion.
-- **Run** — play the script, or stream a full Groq reply.
-- **Bare / Loop / Tools / Memory** — same mental model in both sources.
-- Default Live model: `llama-3.1-8b-instant`.
+| Provider    | Default                          | Logprobs |
+|-------------|----------------------------------|----------|
+| Groq        | llama-3.1-8b-instant             | no       |
+| OpenRouter  | openai/gpt-4o-mini               | yes*     |
+| Together    | Meta-Llama-3.1-8B-Instruct-Turbo | yes      |
 
-## Why a local proxy
-
-The browser talks to `/api/chat`. `server.py` forwards to Groq. The key stays on your machine.
-
-## Roadmap
-
-- [x] Mock subword tokens + candidate bars
-- [x] Live Groq streaming via local proxy
-- [ ] Together / DeepInfra path if we want real top-k logprobs
-- [ ] Proper tool-call loop (model sees the tool result and continues)
-- [ ] Memory summarizer instead of raw last reply
+*Depends on the routed model. If a model rejects `logprobs`, text still streams.
