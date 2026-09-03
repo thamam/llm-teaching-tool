@@ -29,7 +29,7 @@ function logprobToTops(logprobs) {
   if (content && content.length) {
     const last = content[content.length - 1];
     const alts = last.top_logprobs || [{ token: last.token, logprob: last.logprob }];
-    return alts.map(function (a) { return { tok: a.token, p: Math.exp(a.logprob); }; }).sort(function (a, b) { return b.p - a.p; });
+    return alts.map(function (a) { return { tok: a.token, p: Math.exp(a.logprob) }; }).sort(function (a, b) { return b.p - a.p; });
   }
   if (logprobs.tokens && logprobs.tokens.length) {
     const i = logprobs.tokens.length - 1;
