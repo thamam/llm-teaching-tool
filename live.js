@@ -1,72 +1,42 @@
 // Live client: Groq / OpenRouter / Together via the local proxy.
-// Browser never sees the keys.
-
 const TOOLS = [
-  {
-    type: "function",
-    function: {
-      name: "now",
-      description: "Return the current time as an ISO-8601 string.",
-      parameters: { type: "object", properties: {}, additionalProperties: false },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "add",
-      description: "Add two numbers and return the sum as a string.",
-      parameters: {
-        type: "object",
-        properties: {
-          a: { type: "number", description: "First addend" },
-          b: { type: "number", description: "Second addend" },
-        },
-        required: ["a", "b"],
-      },
-    },
-  },
+  { type: "function", function: { name: "now", description: "Return the current time as an ISO-8601 string.", parameters: { type: "object", properties: {}, additionalProperties: false } } },
+  { type: "function", function: { name: "add", description: "Add two numbers and return the sum as a string.", parameters: { type: "object", properties: { a: { type: "number" }, b: { type: "number" } }, required: ["a", "b"] } } }
 ];
-
 const PROVIDERS = {
   groq: {
-    label: "Groq",
-    logprobs: false,
-    models: ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "openai/gpt-oss-20b"],
+    label: "Groq", logprobs: false,
+    models: ["openai/gpt-oss-20b", "openai/gpt-oss-120b", "qwen/qwen3.8-27b", "groq/compound-mini", "groq/compound"]
   },
   openrouter: {
-    label: "OpenRouter",
-    logprobs: true,
-    models: ["openai/gpt-4o-mini", "meta-llama/llama-3.1-8b-instruct", "google/gemini-2.0-flash-001"],
+    label: "OpenRouter", logprobs: true,
+    models: ["openai/gpt-4o-mini", "meta-llama/llama-3.1-8b-instruct", "google/gemini-2.0-flash-001"]
   },
   together: {
-    label: "Together",
-    logprobs: true,
-    models: ["meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo", "Qwen/Qwen2.5-7B-Instruct-Turbo"],
-  },
+    label: "Together", logprobs: true,
+    models: ["meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo", "Qwen/Qwen2.5-7B-Instruct-Turbo"]
+  }
 };
-
 function runLocalTool(name, args) {
   args = args || {};
   if (name === "now") return new Date().toISOString();
   if (name === "add") return String(Number(args.a) + Number(args.b));
   return "unknown tool";
 }
-
 function logprobToTops(logprobs) {
   if (!logprobs) return [];
   const content = logprobs.content;
   if (content && content.length) {
     const last = content[content.length - 1];
     const alts = last.top_logprobs || [{ token: last.token, logprob: last.logprob }];
-    return alts.map(function (a) { return { tok: a.token, p: Math.exp(a.logprob) }; }).sort(function (a, b) { return b.p - a.p; });
+    return alts.map(function (a) { return { tok: a.token, p: Math.exp(a.logprob); }; }).sort(function (a, b) { return b.p - a.p; });
   }
   if (logprobs.tokens && logprobs.tokens.length) {
     const i = logprobs.tokens.length - 1;
     let alts = [];
     const top = logprobs.top_logprobs;
     if (Array.isArray(top) && top[i]) {
-      const row = top[i];
-      Object.keys(row).forEach(function (tok) { alts.push({ tok: tok, p: Math.exp(row[tok]) }); });
+      Object.keys(top[i]).forEach(function (tok) { alts.push({ tok: tok, p: Math.exp(top[i][tok]) }); });
     } else {
       alts = [{ tok: logprobs.tokens[i], p: Math.exp(logprobs.token_logprobs[i] || 0) }];
     }
@@ -74,17 +44,13 @@ function logprobToTops(logprobs) {
   }
   return [];
 }
-
 function LiveClient(opts) {
   this.endpoint = (opts && opts.endpoint) || "/api/chat";
   this.provider = (opts && opts.provider) || "groq";
   this.model = (opts && opts.model) || PROVIDERS.groq.models[0];
   this.abort = null;
 }
-LiveClient.prototype.stop = function () {
-  if (this.abort) this.abort.abort();
-  this.abort = null;
-};
+LiveClient.prototype.stop = function () { if (this.abort) this.abort.abort(); this.abort = null; };
 LiveClient.prototype.complete = async function (payload, onDelta) {
   this.stop();
   this.abort = new AbortController();
@@ -98,10 +64,7 @@ LiveClient.prototype.complete = async function (payload, onDelta) {
   });
   if (!res.ok) {
     let text = await res.text();
-    try {
-      const j = JSON.parse(text);
-      text = (j.error && j.error.message) || j.error || text;
-    } catch (e) {}
+    try { const j = JSON.parse(text); text = (j.error && j.error.message) || j.error || text; } catch (e) {}
     throw new Error(typeof text === "string" ? text : JSON.stringify(text));
   }
   if (!payload.stream) {
@@ -113,10 +76,7 @@ LiveClient.prototype.complete = async function (payload, onDelta) {
   }
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
-  let buf = "";
-  let full = "";
-  let toolCalls = [];
-  let lastTops = [];
+  let buf = "", full = "", toolCalls = [], lastTops = [];
   while (true) {
     const chunk = await reader.read();
     if (chunk.done) break;
@@ -128,19 +88,12 @@ LiveClient.prototype.complete = async function (payload, onDelta) {
       if (!line || line.charAt(0) === ":") continue;
       if (line.indexOf("data:") === 0) line = line.slice(5).trim();
       if (line === "[DONE]") continue;
-      let json;
-      try { json = JSON.parse(line); } catch (e) { continue; }
+      let json; try { json = JSON.parse(line); } catch (e) { continue; }
       const choice = json.choices && json.choices[0];
       if (!choice) continue;
       const delta = choice.delta || {};
-      if (delta.content) {
-        full += delta.content;
-        if (onDelta) onDelta({ type: "text", text: delta.content });
-      }
-      if (choice.logprobs) {
-        lastTops = logprobToTops(choice.logprobs);
-        if (onDelta && lastTops.length) onDelta({ type: "logprobs", tops: lastTops });
-      }
+      if (delta.content) { full += delta.content; if (onDelta) onDelta({ type: "text", text: delta.content }); }
+      if (choice.logprobs) { lastTops = logprobToTops(choice.logprobs); if (onDelta && lastTops.length) onDelta({ type: "logprobs", tops: lastTops }); }
       if (delta.tool_calls) {
         delta.tool_calls.forEach(function (tc) {
           const idx = typeof tc.index === "number" ? tc.index : 0;
@@ -150,12 +103,9 @@ LiveClient.prototype.complete = async function (payload, onDelta) {
           if (tc.function && tc.function.arguments) toolCalls[idx].args += tc.function.arguments;
         });
       }
-      if (choice.finish_reason && onDelta) {
-        onDelta({ type: "finish", reason: choice.finish_reason, toolCalls: toolCalls.filter(Boolean), tops: lastTops });
-      }
+      if (choice.finish_reason && onDelta) onDelta({ type: "finish", reason: choice.finish_reason, toolCalls: toolCalls.filter(Boolean), tops: lastTops });
     }
   }
   return { text: full, toolCalls: toolCalls.filter(Boolean), tops: lastTops };
 };
-
 window.LLMLive = { LiveClient: LiveClient, TOOLS: TOOLS, GROQ_TOOLS: TOOLS, PROVIDERS: PROVIDERS, runLocalTool: runLocalTool, logprobToTops: logprobToTops };
