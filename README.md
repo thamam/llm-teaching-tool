@@ -4,6 +4,8 @@ Interactive demo: next-token prediction, the generation loop, tools, and memory.
 
 **Repo:** https://github.com/thamam/llm-teaching-tool
 
+Agents: read `AGENTS.md`, then `context.md`, before changing anything.
+
 ## Sources
 
 - **Mock** — scripted subword tokens + candidate bars. Offline.
@@ -31,7 +33,7 @@ The footer shows which keys loaded.
 
 | Provider    | Default                          | Logprobs |
 |-------------|----------------------------------|----------|
-| Groq        | llama-3.1-8b-instant             | no       |
+| Groq        | openai/gpt-oss-20b               | no       |
 | OpenRouter  | openai/gpt-4o-mini               | yes*     |
 | Together    | Meta-Llama-3.1-8B-Instruct-Turbo | yes      |
 
